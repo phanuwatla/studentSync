@@ -222,7 +222,7 @@ class App extends React.Component {
                             </Button>
                             <Button onClick={this.toggleViewMode} className="btn btn-secondary">
                                 View Mode ({this.state.viewMode === 'table' ? 'Card' : 'Table'}){' '}
-                                <i className={this.state.viewMode === 'table' ? 'fas fa-th-large' : 'fas fa-th-list'}></i>
+                                <i className={this.state.viewMode === 'table' ? 'fa fa-th-large' : 'fa fa-th-list'}></i>
                             </Button>
                         </div>
                     )}
