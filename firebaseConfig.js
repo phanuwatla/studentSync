@@ -86,12 +86,14 @@ class App extends React.Component {
     }
 
     insertClass() {
+        const classPhoto = this.state.classPhoto || getRandomImage();
+
         db.collection("classroom").add({
             info: {
                 code: this.state.classCode,
                 name: this.state.className,
                 room: this.state.classRoom,
-                photo: getRandomImage(),
+                photo: classPhoto,
             },
             owner: this.state.user.uid,
         }).then(() => {
@@ -219,7 +221,8 @@ class App extends React.Component {
                                 Create Class <i className="fa fa-plus"></i>
                             </Button>
                             <Button onClick={this.toggleViewMode} className="btn btn-secondary">
-                                View Mode ({this.state.viewMode === 'table' ? 'Card' : 'Table'})
+                                View Mode ({this.state.viewMode === 'table' ? 'Card' : 'Table'}){' '}
+                                <i className={this.state.viewMode === 'table' ? 'fas fa-th-large' : 'fas fa-th-list'}></i>
                             </Button>
                         </div>
                     )}
@@ -232,6 +235,14 @@ class App extends React.Component {
                                 <TextInput label="รหัสวิชา" app={this} value="classCode" />
                                 <TextInput label="ชื่อวิชา" app={this} value="className" />
                                 <TextInput label="ห้อง" app={this} value="classRoom" />
+                                <div className="form-group">
+                                    <label>เลือกรูปภาพ</label>
+                                    <input
+                                        type="file"
+                                        className="form-control"
+                                        onChange={(e) => this.setState({ classPhoto: URL.createObjectURL(e.target.files[0]) })}
+                                    />
+                                </div>
                             </div>
                             <div className="d-flex gap-2 btnGroup">
                                 <Button onClick={() => {
@@ -272,15 +283,15 @@ class App extends React.Component {
 
                     {/* แสดงข้อมูลห้องเรียน */}
                     {!this.state.showCreateClassForm && !this.state.showEditClassForm && (
-                            this.state.viewMode === 'table' ? (
-                                <ClassroomTable data={this.state.classrooms}/>
-                            ) : (
-                                <ClassroomCards data={this.state.classrooms} onEditClick={(classroom) => this.handleEditClick(classroom)} />
-                            )
+                        this.state.viewMode === 'table' ? (
+                            <ClassroomTable data={this.state.classrooms} />
+                        ) : (
+                            <ClassroomCards data={this.state.classrooms} onEditClick={(classroom) => this.handleEditClick(classroom)} />
+                        )
                     )}
                 </Card.Body>
                 <Card.Footer className="text-center">
-                    College of Computing, Khon Kaen University By 663380179-0 Phanuwat Lakronratch
+                    College of Computing, Khon Kaen University
                 </Card.Footer>
             </Card>
         );
@@ -322,6 +333,7 @@ function ClassroomTable({ data }) {
                     <th>ชื่อวิชา</th>
                     <th>ห้องเรียน</th>
                     <th>ผู้สอน</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -331,6 +343,14 @@ function ClassroomTable({ data }) {
                         <td>{classroom.info.name}</td>
                         <td>{classroom.info.room}</td>
                         <td>{classroom.ownerName}</td>
+                        <td>
+                            <td>
+                                <div className="d-flex gap-2">
+                                    <EditButton />
+                                    <DeleteButton />
+                                </div>
+                            </td>
+                        </td>
                     </tr>
                 ))}
             </tbody>
@@ -389,17 +409,17 @@ function TextInput({ label, app, value, style }) {
     );
 }
 
-function EditButton({ std, app }) {
+function EditButton() {
     return (
-        <button class="actionBtn" onClick={() => app.edit(std)}>
+        <button class="actionBtn">
             <i class="fa-regular fa-pen-to-square"></i> แก้ไข
         </button>
     );
 }
 
-function DeleteButton({ std, app }) {
+function DeleteButton() {
     return (
-        <button class="actionBtn" onClick={() => app.delete(std)}>
+        <button class="actionBtn" onClick={() => this.deleteClass()}>
             <i class="far fa-trash-alt"></i> ลบ
         </button>
     );
