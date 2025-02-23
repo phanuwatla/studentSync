@@ -27,8 +27,8 @@ const defaultImages = [
 const getRandomImage = () => defaultImages[Math.floor(Math.random() * defaultImages.length)];
 
 class App extends React.Component {
-    constructor() {
-        super();
+    constructor(props) {
+        super(props);
         this.state = {
             classrooms: [],
             user: null,
@@ -47,6 +47,12 @@ class App extends React.Component {
             showEditProfileForm: false, // For showing the profile editing form
             showDetailView: false, // For showing the detail view
             classToView: null, // Data of the class to view details
+            showCheckinModal: false,
+            checkinToVerify: null,
+            inputCode: ["", "", "", "", "", ""],
+            showSuccessModal: false,
+            checkinTime: "",
+            showJoinClassModal: false
         };
 
         auth.onAuthStateChanged((user) => {
@@ -140,9 +146,9 @@ class App extends React.Component {
                 photo: classPhoto,
             },
             owner: this.state.user.uid,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(() => {
             console.log("Classroom added successfully");
-        }).catch((error) => {
             console.error("Error adding classroom: ", error);
         });
     }
@@ -264,6 +270,49 @@ class App extends React.Component {
         });
     };
 
+    handleInputCodeChange = (index, value) => {
+        const newCode = [...this.state.inputCode];
+        newCode[index] = value;
+        this.setState({ inputCode: newCode }, () => {
+            if (value && index < 5) {
+                document.getElementById(`input-code-${index + 1}`).focus();
+            }
+        });
+    };
+
+    verifyCheckinCode = () => {
+        const { checkinToVerify, inputCode } = this.state;
+        const code = inputCode.join("");
+        if (checkinToVerify.code === code) {
+            this.saveStudentCheckin();
+        } else {
+            alert("รหัสเช็คชื่อไม่ถูกต้อง โปรดลองอีกครั้ง");
+        }
+    };
+
+    saveStudentCheckin = () => {
+        const { checkinToVerify } = this.state;
+        const { classData } = this.props;
+        const user = this.props.app.state.user;
+
+        db.collection("classroom").doc(classData.id).collection("checkin").doc(checkinToVerify.id).collection("students").doc(user.uid).set({
+            name: user.displayName,
+            remark: "Checked in",
+            date: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => {
+            console.log("Student check-in saved successfully");
+            this.setState({ 
+                showCheckinModal: false, 
+                inputCode: ["", "", "", "", "", ""],
+                showSuccessModal: true // Show success modal
+            }, () => {
+                this.loadCheckins(); // Reload checkins to reflect the updated state
+            });
+        }).catch((error) => {
+            console.error("Error saving student check-in: ", error);
+        });
+    };
+
     render() {
         if (!this.state.user) {
             return <LoginPage app={this} />;
@@ -285,7 +334,7 @@ class App extends React.Component {
                         <EditProfileForm app={this} />
                     )}
                     {this.state.showDetailView && this.state.classToView && (
-                        <ClassDetailView classData={this.state.classToView} onClose={() => this.setState({ showDetailView: false })} />
+                        <ClassDetailView classData={this.state.classToView} onClose={() => this.setState({ showDetailView: false })} app={this} />
                     )}
                     {!this.state.showCreateClassForm && !this.state.showEditClassForm && !this.state.showEditProfileForm && !this.state.showDetailView && (
                         <div className="d-flex gap-2 btnGroup">
@@ -318,6 +367,33 @@ class App extends React.Component {
                 <Card.Footer className="text-center">
                     College of Computing, Khon Kaen University By UIIA
                 </Card.Footer>
+                <Modal show={this.state.showCheckinModal} onHide={() => this.setState({ showCheckinModal: false })}>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Check-in</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <div className="form-group">
+                            <label>รหัสเช็คชื่อ</label>
+                            <div className="d-flex gap-2">
+                                {this.state.inputCode.map((digit, index) => (
+                                    <input
+                                        key={index}
+                                        id={`input-code-${index}`}
+                                        type="text"
+                                        className="form-control text-center"
+                                        maxLength="1"
+                                        value={digit}
+                                        onChange={(e) => this.handleInputCodeChange(index, e.target.value)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button onClick={this.verifyCheckinCode} className="btn btn-success">Verify</Button>
+                        <Button onClick={() => this.setState({ showCheckinModal: false })} className="btn btn-secondary">Cancel</Button>
+                    </Modal.Footer>
+                </Modal>
             </Card>
         );
     }
@@ -398,8 +474,8 @@ function ClassroomTable({ data, onEditClick, onDeleteClick, onViewClick }) {
                         </td>
                         <td>
                             <div className="d-flex gap-2">
-                                <EditButton onClick={() => onEditClick(classroom)} />
-                                <DeleteButton onClick={() => onDeleteClick(classroom)} />
+                                <EditButton onClick={(e) => { onEditClick(classroom); }} />
+                                <DeleteButton onClick={(e) => { onDeleteClick(classroom); }} />
                             </div>
                         </td>
                     </tr>
@@ -469,8 +545,8 @@ function EditButton({ onClick }) {
 
 function DeleteButton({ onClick }) {
     return (
-        <button class="actionBtn" onClick={onClick}>
-            <i class="far fa-trash-alt"></i> ลบ
+        <button className="actionBtn" onClick={(e) => { e.stopPropagation(); onClick(); }}>
+            <i className="far fa-trash-alt"></i> ลบ
         </button>
     );
 }
@@ -582,7 +658,18 @@ class ClassDetailView extends React.Component {
             selectedUserId: "",
             checkinCode: ["", "", "", "", "", ""], // Array for 6-digit code
             checkinDate: "",
-            checkinStatus: 0
+            checkinStatus: 0,
+            showCheckinModal: false,
+            checkinToVerify: null,
+            inputCode: ["", "", "", "", "", ""],
+            showSuccessModal: false,
+            checkinTime: "",
+            showJoinClassModal: false,
+            checkinError: "", // เพิ่มสถานะใหม่สำหรับข้อความแจ้งเตือน
+            checkinStudents: [],
+            showCheckinStudentsModal: false,
+            showEditStudentModal: false,
+            editStudentRemark: ""
         };
     }
 
@@ -700,17 +787,26 @@ class ClassDetailView extends React.Component {
         const { checkinCode, checkinDate, checkinStatus } = this.state;
         const code = checkinCode.join(""); // Combine code array into a single string
 
-        db.collection("classroom").doc(classData.id).collection("checkin").add({
-            code: code,
-            date: checkinDate,
-            status: checkinStatus
-        }).then(() => {
-            console.log("Check-in added successfully");
-            this.setState({ showAddCheckinModal: false, checkinCode: ["", "", "", "", "", ""], checkinDate: "", checkinStatus: 0 });
-            this.loadCheckins();
-        }).catch((error) => {
-            console.error("Error adding check-in: ", error);
-        });
+        // Get the number of documents in the checkin collection
+        db.collection("classroom").doc(classData.id).collection("checkin").get()
+            .then((querySnapshot) => {
+                const newCheckinId = querySnapshot.size + 1; // New ID is the count of documents + 1
+
+                db.collection("classroom").doc(classData.id).collection("checkin").doc(newCheckinId.toString()).set({
+                    code: code,
+                    date: checkinDate,
+                    status: checkinStatus
+                }).then(() => {
+                    console.log("Check-in added successfully");
+                    this.setState({ showAddCheckinModal: false, checkinCode: ["", "", "", "", "", ""], checkinDate: "", checkinStatus: 0 });
+                    this.loadCheckins();
+                }).catch((error) => {
+                    console.error("Error adding check-in: ", error);
+                });
+            })
+            .catch((error) => {
+                console.error("Error getting check-in count: ", error);
+            });
     }
 
     handleDateChange = (event) => {
@@ -763,7 +859,7 @@ class ClassDetailView extends React.Component {
                     console.error("Error deleting check-in: ", error);
                 });
         }
-    };
+    }
 
     saveEditedCheckin = () => {
         const { classData } = this.props;
@@ -783,9 +879,173 @@ class ClassDetailView extends React.Component {
         });
     };
 
+    handleInputCodeChange = (index, value) => {
+        const newCode = [...this.state.inputCode];
+        newCode[index] = value;
+        this.setState({ inputCode: newCode }, () => {
+            if (value && index < 5) {
+                document.getElementById(`input-code-${index + 1}`).focus();
+            }
+        });
+    };
+
+    handleInputCodeKeyDown = (index, event) => {
+        if (event.key === "Backspace" && !this.state.inputCode[index] && index > 0) {
+            // Move focus to previous input if current input is empty
+            document.getElementById(`input-code-${index - 1}`).focus();
+        }
+    };
+
+    verifyCheckinCode = () => {
+        const { checkinToVerify, inputCode } = this.state;
+        const code = inputCode.join("");
+        if (checkinToVerify.code === code) {
+            this.saveStudentCheckin();
+        } else {
+            this.setState({ checkinError: "รหัสเช็คชื่อไม่ถูกต้อง โปรดลองอีกครั้ง" });
+        }
+    };
+
+    saveStudentCheckin = () => {
+        const { checkinToVerify } = this.state;
+        const { classData } = this.props;
+        const user = this.props.app.state.user;
+
+        db.collection("classroom").doc(classData.id).collection("checkin").doc(checkinToVerify.id).collection("students").doc(user.uid).set({
+            name: user.displayName,
+            remark: "Checked in",
+            date: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => {
+            console.log("Student check-in saved successfully");
+            this.setState({ 
+                showCheckinModal: false, 
+                inputCode: ["", "", "", "", "", ""],
+                showSuccessModal: true // Show success modal
+            }, () => {
+                this.loadCheckins(); // Reload checkins to reflect the updated state
+            });
+        }).catch((error) => {
+            console.error("Error saving student check-in: ", error);
+        });
+    };
+
+    joinClass = () => {
+        const { classData } = this.props;
+        const user = this.props.app.state.user;
+
+        db.collection("classroom").doc(classData.id).collection("students").doc(user.uid).set({
+            name: user.displayName,
+            status: 0,
+            stdid: user.uid
+        }).then(() => {
+            console.log("Student added to class successfully");
+            this.setState({ showJoinClassModal: false });
+            this.loadStudents(); // Reload students to reflect the updated state
+        }).catch((error) => {
+            console.error("Error adding student to class: ", error);
+        });
+    };
+
+    confirmAllStudents = () => {
+        const { classData } = this.props;
+        const batch = db.batch();
+
+        this.state.students.forEach((student) => {
+            if (student.status === 0) { // Check if student is waiting for confirmation
+                const studentRef = db.collection("classroom").doc(classData.id).collection("students").doc(student.id);
+                batch.update(studentRef, { status: 1 });
+            }
+        });
+
+        batch.commit().then(() => {
+            console.log("All students confirmed successfully");
+            this.loadStudents(); // Reload students to reflect the updated state
+        }).catch((error) => {
+            console.error("Error confirming students: ", error);
+        });
+    };
+
+    loadCheckinStudents = (checkinId) => {
+        const { classData } = this.props;
+        db.collection("classroom").doc(classData.id).collection("checkin").doc(checkinId).collection("students").get()
+            .then((querySnapshot) => {
+                let studentsList = [];
+                querySnapshot.forEach((doc) => {
+                    studentsList.push({ id: doc.id, ...doc.data() });
+                });
+                this.setState({ 
+                    checkinStudents: studentsList, 
+                    showCheckinStudentsModal: true, 
+                    checkinToView: checkinId,
+                    noCheckinStudents: studentsList.length === 0 // Set flag if no students
+                });
+            })
+            .catch((error) => {
+                console.error("Error getting checkin students: ", error);
+            });
+    };
+
+    handleEditCheckinStudent = (student) => {
+        this.setState({
+            studentToEdit: student,
+            editStudentName: student.name,
+            editStudentRemark: student.remark,
+            showEditStudentModal: true
+        });
+    };
+
+    handleDeleteCheckinStudent = (checkinId, studentId) => {
+        const { classData } = this.props;
+        if (confirm("คุณต้องการลบนักเรียนคนนี้ใช่หรือไม่?")) {
+            db.collection("classroom").doc(classData.id).collection("checkin").doc(checkinId).collection("students").doc(studentId).delete()
+                .then(() => {
+                    console.log("Student deleted successfully");
+                    this.loadCheckinStudents(checkinId);
+                })
+                .catch((error) => {
+                    console.error("Error deleting student: ", error);
+                });
+        }
+    };
+
+    saveEditedCheckinStudent = () => {
+        const { classData } = this.props;
+        const { studentToEdit, editStudentName, editStudentRemark, checkinToView } = this.state;
+
+        db.collection("classroom").doc(classData.id).collection("checkin").doc(checkinToView).collection("students").doc(studentToEdit.id).update({
+            name: editStudentName,
+            remark: editStudentRemark
+        }).then(() => {
+            console.log("Student updated successfully");
+            this.setState({ studentToEdit: null, showEditStudentModal: false });
+            this.loadCheckinStudents(checkinToView);
+        }).catch((error) => {
+            console.error("Error updating student: ", error);
+        });
+    };
+
     render() {
         const { classData, onClose } = this.props;
-        const { students, users, checkins, studentToEdit, editStudentName, editStudentStatus, showModal, showAddStudentModal, showAddCheckinModal, selectedUserId, checkinCode, checkinDate, checkinStatus } = this.state;
+        const { students, users, checkins, studentToEdit, editStudentName, editStudentStatus, showModal, showAddStudentModal, showAddCheckinModal, selectedUserId, checkinCode, checkinDate, checkinStatus, showCheckinModal, inputCode, showSuccessModal, checkinTime, showJoinClassModal, checkinError, checkinStudents, showCheckinStudentsModal, showEditStudentModal, editStudentRemark, checkinToView } = this.state;
+        const user = this.props.app.state.user;
+
+        if (showCheckinStudentsModal && checkinToView) {
+            return (
+                <CheckinDetailView
+                    checkin={checkinToView}
+                    students={checkinStudents}
+                    onClose={() => this.setState({ showCheckinStudentsModal: false, checkinToView: null, checkinStudents: [] })}
+                    onEditStudent={this.handleEditCheckinStudent}
+                    onDeleteStudent={this.handleDeleteCheckinStudent}
+                    noCheckinStudents={this.state.noCheckinStudents}
+                    showEditStudentModal={showEditStudentModal}
+                    editStudentName={editStudentName}
+                    editStudentRemark={editStudentRemark}
+                    handleEditStudentChange={(changes) => this.setState(changes)}
+                    saveEditedCheckinStudent={this.saveEditedCheckinStudent}
+                />
+            );
+        }
 
         return (
             <div className="class-detail-view">
@@ -808,7 +1068,7 @@ class ClassDetailView extends React.Component {
                     <Card.Footer>
                         <div className="header-btn">
                             <Button onClick={onClose} className="btn btn-secondary">Back to Home <i className="fa fa-house"></i></Button>
-                            <Button onClick={onClose} className="btn btn-primary">Join Class <i className="fa fa-arrow-right-to-bracket"></i></Button>
+                            <Button onClick={() => this.setState({ showJoinClassModal: true })} className="btn btn-primary">Join Class <i className="fa fa-arrow-right-to-bracket"></i></Button>
                         </div>
                     </Card.Footer>
                 </Card>
@@ -822,7 +1082,10 @@ class ClassDetailView extends React.Component {
                         <h5>Student in Class</h5>
                         <p>View and manage students in the class!</p>  
                     </div>
-                    <Button onClick={() => this.setState({ showAddStudentModal: true })} className="btn btn-primary">Add Student <i className="fa fa-plus"></i></Button>
+                    <div className="d-flex gap-2">
+                        <Button onClick={() => this.setState({ showAddStudentModal: true })} className="btn btn-primary">Add Student <i className="fa fa-plus"></i></Button>
+                        <Button onClick={this.confirmAllStudents} className="btn btn-secondary">Confirm All <i className="fa fa-check"></i></Button>
+                    </div>
                 </div>
                 <Table striped bordered hover responsive>
                     <thead>
@@ -875,25 +1138,41 @@ class ClassDetailView extends React.Component {
                             <th>วันเวลา</th>
                             <th>สถานะ</th>
                             <th>Action</th>
+                            <th>เช็คชื่อ</th>
                         </tr>
                     </thead>
                     <tbody>
                         {checkins.length === 0 ? (
                             <tr>
-                                <td colSpan="5" className="text-center"><i class="fa-regular fa-calendar"></i> ยังไม่มีการเช็คชื่อในรายวิชานี้</td>
+                                <td colSpan="6" className="text-center"><i class="fa-regular fa-calendar"></i> ยังไม่มีการเช็คชื่อในรายวิชานี้</td>
                             </tr>
                         ) : (
                             checkins.map((checkin, index) => (
-                                <tr key={index}>
-                                    <td>{index + 1}</td>
+                                <tr key={index} onClick={() => this.loadCheckinStudents(checkin.id)}>
+                                    <td>{checkin.id}</td>
                                     <td>{checkin.code}</td>
                                     <td>{checkin.date}</td>
-                                    <td>{checkin.status === 0 ? 'ยังไม่เริ่ม' : checkin.status === 1 ? 'กำลังเช็คชื่อ' : 'เสร็จแล้ว'}</td>
+                                    <td>
+                                        {checkin.status === 0 ? (
+                                            <span><i className="fa fa-clock" style={{ color: 'gray' }}></i> ยังไม่เริ่ม</span>
+                                        ) : checkin.status === 1 ? (
+                                            <span><i className="fa fa-clock" style={{ color: 'orange' }}></i> กำลังเช็คชื่อ</span>
+                                        ) : (
+                                            <span><i className="fa fa-check-circle" style={{ color: 'green' }}></i> เสร็จแล้ว</span>
+                                        )}
+                                    </td>
                                     <td>
                                         <div className="d-flex gap-2">
                                             <EditButton onClick={() => this.handleEditCheckin(checkin)} />
                                             <DeleteButton onClick={() => this.handleDeleteCheckin(checkin.id)} />
                                         </div>
+                                    </td>
+                                    <td>
+                                        {checkin.students && checkin.students[user.uid] ? (
+                                            <Button className="btn btn-secondary" disabled>Checked-in at {new Date(checkin.students[user.uid].date).toLocaleString()}</Button>
+                                        ) : (
+                                            <Button onClick={(e) => { e.stopPropagation(); this.setState({ showCheckinModal: true, checkinToVerify: checkin }) }} className="btn btn-primary">Check-in <i class="fa-regular fa-calendar-check"></i></Button>
+                                        )}
                                     </td>
                                 </tr>
                             ))
@@ -979,7 +1258,7 @@ class ClassDetailView extends React.Component {
                                     />
                                 ))}
                             </div>
-                            <Button onClick={this.generateRandomCode} className="btn btn-secondary mt-2">Generate Code</Button>
+                            <Button onClick={this.generateRandomCode} className="btn btn-secondary mt-2 mb-2">Generate Code <i class="fa fa-shuffle"></i></Button>
                         </div>
                         <div className="form-group">
                             <label>วันเวลา</label>
@@ -1010,9 +1289,167 @@ class ClassDetailView extends React.Component {
                         <Button onClick={() => this.setState({ showAddCheckinModal: false })} className="btn btn-secondary">Cancel</Button>
                     </Modal.Footer>
                 </Modal>
+
+                <Modal show={showCheckinModal} onHide={() => this.setState({ showCheckinModal: false, checkinError: "" })}>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Check-in</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <div className="form-group">
+                            <label>รหัสเช็คชื่อ</label>
+                            <div className="d-flex gap-2">
+                                {inputCode.map((digit, index) => (
+                                    <input
+                                        key={index}
+                                        id={`input-code-${index}`}
+                                        type="text"
+                                        className="form-control text-center"
+                                        maxLength="1"
+                                        value={digit}
+                                        onChange={(e) => this.handleInputCodeChange(index, e.target.value)}
+                                        onKeyDown={(e) => this.handleInputCodeKeyDown(index, e)}
+                                    />
+                                ))}
+                            </div>
+                            {checkinError && <p className="text-danger mt-2">{checkinError}</p>}
+                        </div>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button onClick={this.verifyCheckinCode} className="btn btn-success">Verify</Button>
+                        <Button onClick={() => this.setState({ showCheckinModal: false, checkinError: "" })} className="btn btn-secondary">Cancel</Button>
+                    </Modal.Footer>
+                </Modal>
+
+                <Modal show={showSuccessModal} onHide={() => this.setState({ showSuccessModal: false })}>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Check-in Successful</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <p>Check-in completed successfully!</p>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button onClick={() => this.setState({ showSuccessModal: false })} className="btn btn-primary">OK</Button>
+                    </Modal.Footer>
+                </Modal>
+
+                <Modal show={showJoinClassModal} onHide={() => this.setState({ showJoinClassModal: false })}>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Join Class</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <p>Are you sure you want to join this class?</p>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button onClick={this.joinClass} className="btn btn-success">Join</Button>
+                        <Button onClick={() => this.setState({ showJoinClassModal: false })} className="btn btn-secondary">Cancel</Button>
+                    </Modal.Footer>
+                </Modal>
+
+                <Modal show={showEditStudentModal} onHide={() => this.setState({ showEditStudentModal: false })}>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Edit Check-in Student</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <div className="form-group">
+                            <label>Student Name</label>
+                            <input
+                                type="text"
+                                className="form-control"
+                                value={editStudentName}
+                                onChange={(e) => this.setState({ editStudentName: e.target.value })}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Remark</label>
+                            <input
+                                type="text"
+                                className="form-control"
+                                value={editStudentRemark}
+                                onChange={(e) => this.setState({ editStudentRemark: e.target.value })}
+                            />
+                        </div>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button onClick={this.saveEditedCheckinStudent} className="btn btn-success">Save Changes</Button>
+                        <Button onClick={() => this.setState({ showEditStudentModal: false })} className="btn btn-secondary">Cancel</Button>
+                    </Modal.Footer>
+                </Modal>
             </div>
         );
     }
+}
+
+function CheckinDetailView({ checkin, students, onClose, onEditStudent, onDeleteStudent, noCheckinStudents, showEditStudentModal, editStudentName, editStudentRemark, handleEditStudentChange, saveEditedCheckinStudent }) {
+    return (
+        <div className="checkin-detail-view">
+            <Button onClick={onClose} className="btn btn-secondary"><i className="fa fa-arrow-left"></i> Back</Button>
+            <div className="title-container mb-3 mt-4">
+                <h5>Attendants</h5>
+                <p>View and manage students in the class!</p>  
+            </div>
+            <Table striped bordered hover responsive>
+                <thead>
+                    <tr>
+                        <th>Student ID</th>
+                        <th>Student Name</th>
+                        <th>Remark</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {noCheckinStudents ? (
+                        <tr>
+                            <td colSpan="4" className="text-center"><i className="fa-regular fa-face-sad-cry"></i> ยังไม่มีนักศึกษาที่เช็คชื่อในการเรียนครั้งนี้</td>
+                        </tr>
+                    ) : (
+                        students.map((student) => (
+                            <tr key={student.id}>
+                                <td>{student.stdid}</td>
+                                <td>{student.name}</td>
+                                <td>{student.remark}</td>
+                                <td>
+                                    <div className="d-flex gap-2">
+                                        <EditButton onClick={() => onEditStudent(student)} />
+                                        <DeleteButton onClick={() => onDeleteStudent(checkin.id, student.id)} />
+                                    </div>
+                                </td>
+                            </tr>
+                        ))
+                    )}
+                </tbody>
+            </Table>
+
+            <Modal show={showEditStudentModal} onHide={() => handleEditStudentChange({ showEditStudentModal: false })}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Edit Check-in Student</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <div className="form-group">
+                        <label>Student Name</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            value={editStudentName}
+                            onChange={(e) => handleEditStudentChange({ editStudentName: e.target.value })}
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label>Remark</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            value={editStudentRemark}
+                            onChange={(e) => handleEditStudentChange({ editStudentRemark: e.target.value })}
+                        />
+                    </div>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button onClick={saveEditedCheckinStudent} className="btn btn-success">Save Changes</Button>
+                    <Button onClick={() => handleEditStudentChange({ showEditStudentModal: false })} className="btn btn-secondary">Cancel</Button>
+                </Modal.Footer>
+            </Modal>
+        </div>
+    );
 }
 
 const container = document.getElementById("myapp");
