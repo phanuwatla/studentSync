@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>StudentSync |  Mobile Web Final Project</title>
+    <title>StudentSync | Mobile Web Final Project</title>
 
     <!-- React & ReactDOM -->
     <script src="https://cdn.jsdelivr.net/npm/react/umd/react.production.min.js" crossorigin></script>
@@ -28,6 +28,7 @@
             font-family: 'Prompt', sans-serif;
             background-color: #F6F2FF;
             color: #333;
+            height: 100vh;
         }
 
         .card {
@@ -35,8 +36,6 @@
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             background-color: #FFFFFF;
         }
-
-        
 
         .header {
             display: flex;
@@ -46,7 +45,7 @@
 
         .profile {
             display: flex;
-            gap: 20px;
+            gap: 1.5em;
             align-items: center;
         }
 
@@ -54,6 +53,10 @@
             border-radius: 50%;
             width: 40px;
             height: 40px;
+        }
+
+        .owner-img {
+            border-radius: 50%;
         }
 
         .card-header {
@@ -101,6 +104,12 @@
             flex-direction: column;
         }
 
+        .profile-info {
+            display: flex;
+            gap: 0.8em;
+            align-items: center;
+        }
+
         .email {
             color: #666;
             font-size: 14px;
@@ -123,7 +132,8 @@
 
         .btn-primary {
             background-color: #584CB7;
-            border-color: #8a7bff
+            border-color: #8a7bff;
+            height: fit-content;
         }
 
         .btn-secondary {
@@ -131,6 +141,12 @@
             border-color: #584CB7;
             color: #584CB7;
             border-width: 2px;
+        }
+
+        .btn-danger {
+            background-color: #d34040;
+            border-color: transparent;
+            outline-color: transparent;
         }
 
         .btn-primary:hover,
@@ -147,6 +163,14 @@
             border-color: #584CB7;
             color: #584CB7;
             border-width: 2px;
+        }
+
+        .btn-danger:hover,
+        .btn-danger:active,
+        .btn-danger:link {
+            background-color: #d34040;
+            border-color: transparent;
+            outline-color: transparent;
         }
 
         .btn-outline-secondary {
@@ -176,9 +200,123 @@
 
         .card-img {
             aspect-ratio: 21/9;
-            object-fit: cover; 
+            object-fit: cover;
         }
 
+        .login-card {
+            width: fit-content;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .btn-login {
+            background-color: #584CB7;
+            color: #FFFFFF;
+            width: 100%;
+            font-weight: 500;
+            font-size: 16px;
+            padding: 8px 15px;
+            border-radius: 5px;
+        }
+
+        .google-logo {
+            width: 2em;
+            margin-bottom: 0.2em;
+        }
+
+        .fa {
+            margin-left: 0.2em;
+        }
+
+        .card-title {
+            width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .header-btn {
+            display: flex;
+            gap: 0.5em;
+        }
+
+        .card-item {
+            cursor: pointer;
+        }
+
+        .detail-img {
+            width: 15em;
+            height: 100%;
+            object-fit: cover;
+            aspect-ratio: 16/9;
+            border-radius: 0.5em;
+        }
+
+        .detail-info {
+            display: flex;
+            gap: 1.5em;
+        }
+
+        .detail-text {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        tr td {
+            cursor: pointer;
+        }
+
+        .qr-code {
+            border: 0.15em solid #584CB7;
+            border-radius: 0.5em;
+            width: 9em;
+        }
+
+        .title-container {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .title-container p {
+            color: #666;
+        }
+
+        .title-with-btn {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        @media (max-width: 1024px) {
+            .header {
+                flex-direction: column;
+            }
+
+            .profile {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .title {
+                align-self: start;
+            }
+
+            .card-img {
+            aspect-ratio: 4/3;
+            }
+
+            .detail-info {
+                flex-direction: column;
+            }
+
+            .detail-img {
+                width: 100%;
+                aspect-ratio: 16/9;
+            }
+        }
     </style>
 </head>
 
